@@ -70,9 +70,12 @@ func (c *FillingCache) Get(key interface{}) (value interface{}, err error) {
 
 		c.lock.Lock()
 		entry.value = value
+
+		//sanity check
 		if !entry.exp.IsZero() {
 			panic("BUG: entry.exp is set while it is being filled")
 		}
+
 		entry.exp = exp
 		entry.err = err
 		c.lock.Unlock()
@@ -91,8 +94,12 @@ func (c *FillingCache) getEntry(key interface{}) (entry *expirableEntry, tofill 
 	item, ok := c.items[key]
 	if ok {
 		entry = item.Value.(*expirableEntry)
+
+		//if this item is expired we remove it and add a new item
+		//if this item is not expired we re-add it to the front
 		c.evictList.Remove(item)
 	}
+
 	if !ok || (!entry.exp.IsZero() && entry.exp.Before(time.Now())) {
 		// if the entry is not found or already expired, add a new entry.
 		// the first client that adds the entry fills the entry
@@ -100,6 +107,7 @@ func (c *FillingCache) getEntry(key interface{}) (entry *expirableEntry, tofill 
 		entry.wg.Add(1)
 		tofill = true
 	}
+
 	// either add the new entry or move an existing entry to the front
 	c.items[key] = c.evictList.PushFront(entry)
 
