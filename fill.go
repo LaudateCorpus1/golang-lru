@@ -15,6 +15,10 @@ type Filler interface {
 	Fill(key interface{}) (value interface{}, expiration time.Time, err error)
 }
 
+type ReportMetrics interface {
+	Fetch(time time.Duration, hit bool, err error)
+}
+
 type FillFunc func(key interface{}) (value interface{}, expiration time.Time, err error)
 
 func (ff FillFunc) Fill(key interface{}) (value interface{}, expiration time.Time, err error) {
@@ -32,6 +36,7 @@ type FillingCache struct {
 	items     map[interface{}]*list.Element
 	lock      sync.RWMutex
 	filler    Filler
+	Metrics   ReportMetrics
 }
 
 // expirableEntry holds a value in the evictList
@@ -58,7 +63,9 @@ func NewFillingCache(size int, fr Filler) *FillingCache {
 
 // looks up a key's value from the cache, if it is not present get it
 func (c *FillingCache) Get(key interface{}) (value interface{}, err error) {
+	start := time.Now()
 	entry, tofill := c.getEntry(key)
+	defer c.report(!tofill, start, err)
 
 	if tofill {
 		value, exp, err := c.filler.Fill(key)
@@ -86,6 +93,12 @@ func (c *FillingCache) Get(key interface{}) (value interface{}, err error) {
 	// always access entry after it is filled
 	entry.wg.Wait()
 	return entry.value, entry.err
+}
+
+func (c *FillingCache) report(hit bool, start time.Time, err error) {
+	if c.Metrics != nil {
+		c.Metrics.Fetch(time.Now().Sub(start), hit, err)
+	}
 }
 
 func (c *FillingCache) getEntry(key interface{}) (entry *expirableEntry, tofill bool) {
