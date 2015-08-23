@@ -16,7 +16,7 @@ type Filler interface {
 }
 
 type ReportMetrics interface {
-	Fetch(time time.Duration, hit bool, err error)
+	ItemFetched(time time.Duration, hit bool, err error)
 }
 
 type FillFunc func(key interface{}) (value interface{}, expiration time.Time, err error)
@@ -97,7 +97,7 @@ func (c *FillingCache) Get(key interface{}) (value interface{}, err error) {
 
 func (c *FillingCache) report(hit bool, start time.Time, err error) {
 	if c.Metrics != nil {
-		c.Metrics.Fetch(time.Now().Sub(start), hit, err)
+		c.Metrics.ItemFetched(time.Now().Sub(start), hit, err)
 	}
 }
 
